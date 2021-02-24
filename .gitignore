@@ -2,17 +2,17 @@
 
 *.exe
 *.pdb
-src/bitcoin
-src/bitcoind
-src/bitcoin-cli
-src/bitcoin-gui
-src/bitcoin-node
-src/bitcoin-tx
-src/bitcoin-wallet
+src/digibyte
+src/digibyted
+src/digibyte-cli
+src/digibyte-gui
+src/digibyte-node
+src/digibyte-tx
+src/digibyte-wallet
 src/test/fuzz/*
 !src/test/fuzz/*.*
-src/test/test_bitcoin
-src/qt/test/test_bitcoin-qt
+src/test/test_digibyte
+src/qt/test/test_digibyte-qt
 
 # autoreconf
 Makefile.in
@@ -92,7 +92,7 @@ src/qt/bitcoin-qt.includes
 *.qm
 Makefile
 !depends/Makefile
-src/qt/bitcoin-qt
+src/qt/digibyte-qt
 Bitcoin-Qt.app
 background.tiff*
 

@@ -11,10 +11,10 @@ BINDIR=${BINDIR:-$BUILDDIR/src}
 MANDIR=${MANDIR:-$TOPDIR/doc/man}
 
 BITCOIND=${BITCOIND:-$BINDIR/bitcoind}
-BITCOINCLI=${BITCOINCLI:-$BINDIR/bitcoin-cli}
-BITCOINTX=${BITCOINTX:-$BINDIR/bitcoin-tx}
-WALLET_TOOL=${WALLET_TOOL:-$BINDIR/bitcoin-wallet}
-BITCOINQT=${BITCOINQT:-$BINDIR/qt/bitcoin-qt}
+BITCOINCLI=${BITCOINCLI:-$BINDIR/digibyte-cli}
+BITCOINTX=${BITCOINTX:-$BINDIR/digibyte-tx}
+WALLET_TOOL=${WALLET_TOOL:-$BINDIR/digibyte-wallet}
+BITCOINQT=${BITCOINQT:-$BINDIR/qt/digibyte-qt}
 
 [ ! -x $BITCOIND ] && echo "$BITCOIND not found or not executable." && exit 1
 
@@ -23,7 +23,7 @@ read -r -a BTCVER <<< "$($BITCOINCLI --version | head -n1 | awk -F'[ -]' '{ prin
 
 # Create a footer file with copyright content.
 # This gets autodetected fine for bitcoind if --version-string is not set,
-# but has different outcomes for bitcoin-qt and bitcoin-cli.
+# but has different outcomes for digibyte-qt and digibyte-cli.
 echo "[COPYRIGHT]" > footer.h2m
 $BITCOIND --version | sed -n '1!p' >> footer.h2m
 
