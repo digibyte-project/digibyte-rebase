@@ -7,6 +7,7 @@
 
 #include <chainparamsseeds.h>
 #include <consensus/merkle.h>
+#include <digibyte/dgbchainparams.h>
 #include <hash.h> // for signet block challenge hash
 #include <tinyformat.h>
 #include <util/system.h>
@@ -511,5 +512,6 @@ std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, c
 void SelectParams(const std::string& network)
 {
     SelectBaseParams(network);
+    InitialiseDGBParams(network);
     globalChainParams = CreateChainParams(gArgs, network);
 }
