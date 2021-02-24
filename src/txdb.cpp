@@ -271,8 +271,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
-                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams))
-                    return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
+                // As with Litecoin; Digibyte does not perform PoW validation for block index items
+                // simply due to the sheer amount of computing power required. There are plenty of other
+                // places a bad block will be identified during startup.
 
                 pcursor->Next();
             } else {
