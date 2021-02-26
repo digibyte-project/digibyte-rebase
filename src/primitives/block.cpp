@@ -28,27 +28,42 @@ uint256 CBlockHeader::GetHash() const
 
 uint256 CBlockHeader::GetPoWHash() const
 {
+    if (!powHash.IsNull()) return powHash;
     const int hashAlgo = GetAlgo(this->nVersion);
     const DGBConsensus::Params& params = DGBParams().GetConsensus();
 
-    uint256 thash;
     switch (hashAlgo) {
-        case ALGO_SHA256D:
-            return GetHash();
+        case ALGO_SHA256D: {
+            const uint256 cache = GetHash();
+            SetCache(cache);
+            return cache;
+        }
         case ALGO_SCRYPT: {
             uint256 thash;
             scrypt_1024_1_1_256(BEGIN(nVersion), BEGIN(thash));
+            SetCache(thash);
             return thash;
         }
-        case ALGO_GROESTL:
-            return HashGroestl(BEGIN(nVersion), END(nNonce));
-        case ALGO_SKEIN:
-            return HashSkein(BEGIN(nVersion), END(nNonce));
-        case ALGO_QUBIT:
-            return HashQubit(BEGIN(nVersion), END(nNonce));
+        case ALGO_GROESTL: {
+            const uint256 cache = HashGroestl(BEGIN(nVersion), END(nNonce));
+            SetCache(cache);
+            return cache;
+        }
+        case ALGO_SKEIN: {
+            const uint256 cache = HashSkein(BEGIN(nVersion), END(nNonce));
+            SetCache(cache);
+            return cache;
+        }
+        case ALGO_QUBIT: {
+            const uint256 cache = HashQubit(BEGIN(nVersion), END(nNonce));
+            SetCache(cache);
+            return cache;
+        }
         case ALGO_ODO: {
             uint32_t key = OdoKey(params, nTime);
-            return HashOdo(BEGIN(nVersion), END(nNonce), key);
+            const uint256 cache = HashOdo(BEGIN(nVersion), END(nNonce), key);
+            SetCache(cache);
+            return cache;
         }
         case ALGO_UNKNOWN:
             return ArithToUint256(~arith_uint256(0));
