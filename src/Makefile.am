@@ -135,6 +135,7 @@ BITCOIN_CORE_H = \
   cuckoocache.h \
   digibyte/dgbchainparams.h \
   digibyte/dgbconsensus.h \
+  digibyte/multialgo.h \
   dbwrapper.h \
   flatfile.h \
   fs.h \
@@ -492,6 +493,7 @@ libbitcoin_common_a_SOURCES = \
   bloom.cpp \
   chainparams.cpp \
   dgbchainparams.cpp \
+  digibyte/multialgo.cpp \
   coins.cpp \
   compressor.cpp \
   core_read.cpp \
