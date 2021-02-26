@@ -25,6 +25,9 @@ public:
         consensus.patchBlockRewardDuration2 = 80160;
         consensus.nTargetTimespanRe = 1 * 60;
         consensus.nTargetSpacingRe = 1 * 60;
+        consensus.nTargetTimespan =  0.10 * 24 * 60 * 60; // 2.4 hours
+        consensus.nTargetSpacing = 60; // 60 seconds
+        consensus.nInterval = consensus.nTargetTimespan / consensus.nTargetSpacing;
         consensus.nIntervalRe = consensus.nTargetTimespanRe / consensus.nTargetSpacingRe;
         consensus.nAveragingInterval = 10;
         consensus.multiAlgoTargetSpacing = 30 * 5;

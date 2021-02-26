@@ -13,6 +13,7 @@
 #include <amount.h>
 #include <coins.h>
 #include <crypto/common.h> // for ReadLE64
+#include <digibyte/dgbchainparams.h>
 #include <fs.h>
 #include <optional.h>
 #include <policy/feerate.h>
@@ -180,7 +181,8 @@ CTransactionRef GetTransaction(const CBlockIndex* const block_index, const CTxMe
  * validationinterface callback.
  */
 bool ActivateBestChain(BlockValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+CAmount GetBlockSubsidy(int nHeight, const DGBConsensus::Params& consensusParams);
+CAmount GetDGBSubsidy(int nHeight, const DGBConsensus::Params& consensusParams);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex* pindex);
@@ -964,7 +966,9 @@ extern VersionBitsCache versionbitscache;
 /**
  * Determine what nVersion a new block should use.
  */
-int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params, int algo = 2);
+
+bool IsAlgoActive(const CBlockIndex* pindexPrev, const DGBConsensus::Params& consensus, int algo);
 
 /** Get block file info entry for one block file */
 CBlockFileInfo* GetBlockFileInfo(size_t n);

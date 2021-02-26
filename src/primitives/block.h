@@ -50,6 +50,8 @@ public:
         return (nBits == 0);
     }
 
+    inline void SetAlgo(int algo);
+
     uint256 GetHash() const;
 
     uint256 GetPoWHash() const;

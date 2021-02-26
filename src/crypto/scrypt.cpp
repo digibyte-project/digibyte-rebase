@@ -31,7 +31,8 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+#include <string>
+#include <cstring>
 
 #if defined(USE_SSE2) && !defined(USE_SSE2_ALWAYS)
 #ifdef _MSC_VER
@@ -526,9 +527,8 @@ void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scrat
 // By default, set to generic scrypt function. This will prevent crash in case when scrypt_detect_sse2() wasn't called
 void (*scrypt_1024_1_1_256_sp_detected)(const char *input, char *output, char *scratchpad) = &scrypt_1024_1_1_256_sp_generic;
 
-std::string scrypt_detect_sse2()
+void scrypt_detect_sse2(std::string& ret)
 {
-    std::string ret;
 #if defined(USE_SSE2_ALWAYS)
     ret = "scrypt: using scrypt-sse2 as built.";
 #else // USE_SSE2_ALWAYS
@@ -556,7 +556,6 @@ std::string scrypt_detect_sse2()
         ret = "scrypt: using scrypt-generic, SSE2 unavailable";
     }
 #endif // USE_SSE2_ALWAYS
-    return ret;
 }
 #endif
 

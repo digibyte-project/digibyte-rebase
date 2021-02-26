@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 class uint256;
 
@@ -238,6 +239,8 @@ public:
      * value is zero.
      */
     unsigned int bits() const;
+
+    base_uint ApproxNthRoot(int n) const;
 
     uint64_t GetLow64() const
     {

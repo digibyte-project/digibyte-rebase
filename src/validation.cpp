@@ -15,6 +15,7 @@
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
 #include <cuckoocache.h>
+#include <digibyte/multialgo.h>
 #include <flatfile.h>
 #include <hash.h>
 #include <index/txindex.h>
@@ -1160,7 +1161,8 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
     }
 
     // Check the header
-    if (!CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
+    uint256 dummyHash;
+    if (!CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     // Signet only: check block solution
@@ -1233,16 +1235,60 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex
     return ReadRawBlockFromDisk(block, block_pos, message_start);
 }
 
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
+CAmount GetDGBSubsidy(int nHeight, const DGBConsensus::Params& consensusParams)
 {
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
-    // Force block reward to zero when right shift is undefined.
-    if (halvings >= 64)
-        return 0;
+    CAmount qSubsidy;
 
-    CAmount nSubsidy = 50 * COIN;
-    // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
-    nSubsidy >>= halvings;
+    if (nHeight < consensusParams.alwaysUpdateDiffChangeTarget) {
+        qSubsidy = 8000 * COIN;
+        int blocks = nHeight - consensusParams.nDiffChangeTarget;
+        int weeks = (blocks / consensusParams.patchBlockRewardDuration) + 1;
+        //decrease reward by 0.5% every 10080 blocks
+        for (int i = 0; i < weeks; i++)
+            qSubsidy -= (qSubsidy / 200);
+    } else if (nHeight < consensusParams.workComputationChangeTarget) {
+        qSubsidy = 2459 * COIN;
+        int blocks = nHeight - consensusParams.alwaysUpdateDiffChangeTarget;
+        int weeks = (blocks / consensusParams.patchBlockRewardDuration2) + 1;
+        //decrease reward by 1% every month
+        for (int i = 0; i < weeks; i++)
+            qSubsidy -= (qSubsidy / 100);
+    } else {
+        //hard fork point: 1.43M
+        //subsidy at hard fork: 2157
+        //monthly decay factor: 98884/100000
+        //last block number: 41668798
+        //expected years after hard fork: 19.1395
+
+        qSubsidy = 2157 * COIN / 2;
+        int64_t blocks = nHeight - consensusParams.workComputationChangeTarget;
+        int64_t months = blocks * 15 / (3600 * 24 * 365 / 12);
+        for (int64_t i = 0; i < months; i++) {
+            qSubsidy *= 98884;
+            qSubsidy /= 100000;
+        }
+    }
+    return qSubsidy;
+}
+
+CAmount GetBlockSubsidy(int nHeight, const DGBConsensus::Params& consensusParams)
+{
+    CAmount nSubsidy = COIN;
+    if (nHeight < consensusParams.nDiffChangeTarget) {
+        nSubsidy = 8000 * COIN;
+        if (nHeight < 1440) {
+            nSubsidy = 72000 * COIN;
+        } else if (nHeight < 5760) {
+            nSubsidy = 16000 * COIN;
+        }
+    } else {
+        nSubsidy = GetDGBSubsidy(nHeight, consensusParams);
+    }
+
+    if (nSubsidy < COIN) {
+        nSubsidy = COIN;
+    }
+
     return nSubsidy;
 }
 
@@ -1827,10 +1873,10 @@ void ThreadScriptCheck(int worker_num) {
 
 VersionBitsCache versionbitscache GUARDED_BY(cs_main);
 
-int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params)
+int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params, int algo)
 {
     LOCK(cs_main);
-    int32_t nVersion = VERSIONBITS_TOP_BITS;
+    int32_t nVersion = VERSIONBITS_TOP_BITS | BLOCK_VERSION_DEFAULT;
 
     for (int i = 0; i < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; i++) {
         ThresholdState state = VersionBitsState(pindexPrev, params, static_cast<Consensus::DeploymentPos>(i), versionbitscache);
@@ -1838,8 +1884,30 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
             nVersion |= VersionBitsMask(params, static_cast<Consensus::DeploymentPos>(i));
         }
     }
-
+    nVersion |= GetVersionForAlgo(algo);
     return nVersion;
+}
+
+bool IsAlgoActive(const CBlockIndex* pindexPrev, const DGBConsensus::Params& consensus, int algo)
+{
+    if (!pindexPrev)
+        return algo == ALGO_SCRYPT;
+    const int nHeight = pindexPrev->nHeight;
+    if (nHeight < consensus.multiAlgoDiffChangeTarget)
+        return algo == ALGO_SCRYPT;
+    else if (nHeight < consensus.algoSwapChangeTarget || VersionBitsState(pindexPrev, Params().GetConsensus(), Consensus::DEPLOYMENT_ODO, versionbitscache) != ThresholdState::ACTIVE) {
+        return algo == ALGO_SHA256D
+            || algo == ALGO_SCRYPT
+            || algo == ALGO_GROESTL
+            || algo == ALGO_SKEIN
+            || algo == ALGO_QUBIT;
+    } else {
+        return algo == ALGO_SHA256D
+            || algo == ALGO_SCRYPT
+            || algo == ALGO_SKEIN
+            || algo == ALGO_QUBIT
+            || algo == ALGO_ODO;
+    }
 }
 
 /**
@@ -1860,10 +1928,10 @@ public:
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const override
     {
-        return pindex->nHeight >= params.MinBIP9WarningHeight &&
-               ((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
+        int nAlgo = GetAlgoByIndex(pindex);
+        return ((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
                ((pindex->nVersion >> bit) & 1) != 0 &&
-               ((ComputeBlockVersion(pindex->pprev, params) >> bit) & 1) == 0;
+               ((ComputeBlockVersion(pindex->pprev, params, nAlgo) >> bit) & 1) == 0;
     }
 };
 
@@ -2209,7 +2277,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, DGBParams().GetConsensus());
     if (block.vtx[0]->GetValueOut() > blockReward) {
         LogPrintf("ERROR: ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)\n", block.vtx[0]->GetValueOut(), blockReward);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-amount");
@@ -2456,6 +2524,7 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
         g_best_block_cv.notify_all();
     }
 
+    bool fAllAsicBoost = true;
     bilingual_str warning_messages;
     int num_unexpected_version = 0;
     if (!::ChainstateActive().IsInitialBlockDownload())
@@ -2476,20 +2545,27 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
         // Check the version of the last 100 blocks to see if we need to upgrade:
         for (int i = 0; i < 100 && pindex != nullptr; i++)
         {
-            int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
+            int nAlgo = GetAlgoByIndex(pindex);
+            int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus(), nAlgo);
             if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)
                 ++num_unexpected_version;
+            // Sha256d blocks with weird versions could simply be the result
+            // of overt AsicBoost.  Don't print the first warning below unless
+            // at least one "upgraded" block is not sha256d.
+            if (nAlgo != ALGO_SHA256D)
+                fAllAsicBoost = false;
             pindex = pindex->pprev;
         }
     }
-    LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%f tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
+    LogPrintf("%s: new best=%s height=%d version=0x%08x algo=%d (%s) log2_work=%.8g tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
       pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
+      GetAlgoByIndex(pindexNew), GetAlgoNameByIndex(pindexNew),
       log(pindexNew->nChainWork.getdouble())/log(2.0), (unsigned long)pindexNew->nChainTx,
       FormatISO8601DateTime(pindexNew->GetBlockTime()),
       GuessVerificationProgress(chainParams.TxData(), pindexNew), ::ChainstateActive().CoinsTip().DynamicMemoryUsage() * (1.0 / (1<<20)), ::ChainstateActive().CoinsTip().GetCacheSize(),
       !warning_messages.empty() ? strprintf(" warning='%s'", warning_messages.original) : "");
 
-    if (num_unexpected_version > 0) {
+    if (num_unexpected_version > 0 && !fAllAsicBoost) {
         LogPrint(BCLog::VALIDATION, "%d of last 100 blocks have unexpected version\n", num_unexpected_version);
     }
 }
@@ -3341,7 +3417,8 @@ static bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
+    uint256 dummyHash;
+    if (fCheckPOW && !CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
     return true;
@@ -3499,8 +3576,11 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     const int nHeight = pindexPrev->nHeight + 1;
 
     // Check proof of work
-    const Consensus::Params& consensusParams = params.GetConsensus();
-    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
+    const int currentAlgo = GetAlgo(block.nVersion);
+    const DGBConsensus::Params& consensusParams = DGBParams().GetConsensus();
+    if (!IsAlgoActive(pindexPrev, consensusParams, currentAlgo))
+        return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "algo-inactive", "PoW algorithm is not active");
+    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams, currentAlgo))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
 
     // Check against checkpoints
@@ -3523,11 +3603,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     if (block.GetBlockTime() > nAdjustedTime + MAX_FUTURE_BLOCK_TIME)
         return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
 
-    // Reject outdated version blocks when 95% (75% on testnet) of the network has upgraded:
-    // check for version 2, 3 and 4 upgrades
-    if((block.nVersion < 2 && nHeight >= consensusParams.BIP34Height) ||
-       (block.nVersion < 3 && nHeight >= consensusParams.BIP66Height) ||
-       (block.nVersion < 4 && nHeight >= consensusParams.BIP65Height))
+    if(block.nVersion < VERSIONBITS_TOP_BITS && IsWitnessEnabled(pindexPrev, params.GetConsensus()))
             return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, strprintf("bad-version(0x%08x)", block.nVersion),
                                  strprintf("rejected nVersion=0x%08x block", block.nVersion));
 

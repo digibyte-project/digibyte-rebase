@@ -16,10 +16,11 @@
 template<unsigned int BITS>
 class base_blob
 {
-protected:
+private:
     static constexpr int WIDTH = BITS / 8;
     uint8_t m_data[WIDTH];
 public:
+
     /* construct 0 value by default */
     constexpr base_blob() : m_data() {}
 
@@ -104,6 +105,8 @@ public:
     {
         s.read((char*)m_data, sizeof(m_data));
     }
+
+    friend class uint512;
 };
 
 /** 160-bit opaque blob.
@@ -140,6 +143,7 @@ inline uint256 uint256S(const char *str)
     rv.SetHex(str);
     return rv;
 }
+
 /* uint256 from std::string.
  * This is a separate function because the constructor uint256(const std::string &str) can result
  * in dangerously catching uint256(0) via std::string(const char*).
@@ -150,5 +154,21 @@ inline uint256 uint256S(const std::string& str)
     rv.SetHex(str);
     return rv;
 }
+
+/** 512-bit unsigned big integer. */
+class uint512 : public base_blob<512> {
+public:
+    uint512() {}
+    uint512(const base_blob<512>& b) : base_blob<512>(b) {}
+    explicit uint512(const std::vector<unsigned char>& vch) : base_blob<512>(vch) {}
+    uint256 trim256() const
+    {
+        uint256 ret;
+        for (unsigned int i = 0; i < uint256::WIDTH; i++){
+            ret.m_data[i] = m_data[i];
+        }
+        return ret;
+    }
+};
 
 #endif // BITCOIN_UINT256_H
