@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Bitcoin Core developers
+// Copyright (c) 2014-2021 The DigiByte developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,43 +8,253 @@
 
 #include <arith_uint256.h>
 #include <chain.h>
+#include <chainparams.h>
+#include <digibyte/multialgo.h>
 #include <primitives/block.h>
 #include <uint256.h>
+#include <util/system.h>
 
-unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
+inline unsigned int PowLimit()
 {
-    assert(pindexLast != nullptr);
-    unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
+    return UintToArith256(Params().GetConsensus().powLimit).GetCompact();
+}
 
-    // Only change once per difficulty adjustment interval
-    if ((pindexLast->nHeight+1) % params.DifficultyAdjustmentInterval() != 0)
-    {
-        if (params.fPowAllowMinDifficultyBlocks)
-        {
-            // Special difficulty rule for testnet:
-            // If the new block's timestamp is more than 2* 10 minutes
-            // then allow mining of a min-difficulty block.
-            if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
-                return nProofOfWorkLimit;
-            else
-            {
-                // Return the last non-special-min-difficulty-rules-block
-                const CBlockIndex* pindex = pindexLast;
-                while (pindex->pprev && pindex->nHeight % params.DifficultyAdjustmentInterval() != 0 && pindex->nBits == nProofOfWorkLimit)
-                    pindex = pindex->pprev;
-                return pindex->nBits;
-            }
-        }
+unsigned int InitialDifficulty(const DGBConsensus::Params& params, int algo)
+{
+    const auto& it = params.initialTarget.find(algo);
+    if (it == params.initialTarget.end())
+        return PowLimit();
+    return UintToArith256(it->second).GetCompact();
+}
+
+unsigned int GetNextWorkRequiredV1(const CBlockIndex* pindexLast, const DGBConsensus::Params& params, int algo)
+{
+    int nHeight = pindexLast->nHeight + 1;
+    bool fNewDifficultyProtocol = (nHeight >= params.nDiffChangeTarget);
+    int blockstogoback = 0;
+
+    //set default to pre-v2.0 values
+    int64_t retargetTimespan = params.nTargetTimespan;
+    int64_t retargetInterval = params.nInterval;
+
+    //if v2.0 changes are in effect for block num, alter retarget values
+    if (fNewDifficultyProtocol && !Params().GetConsensus().fPowAllowMinDifficultyBlocks) {
+        retargetTimespan = params.nTargetTimespanRe;
+        retargetInterval = params.nIntervalRe;
+    }
+
+    // Only change once per interval
+    if ((pindexLast->nHeight + 1) % retargetInterval != 0) {
         return pindexLast->nBits;
     }
 
+    // DigiByte: This fixes an issue where a 51% attack can change difficulty at will.
+    // Go back the full period unless it's the first retarget after genesis. Code courtesy of Art Forz
+    blockstogoback = retargetInterval - 1;
+    if ((pindexLast->nHeight + 1) != retargetInterval)
+        blockstogoback = retargetInterval;
+
     // Go back by what we want to be 14 days worth of blocks
-    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval()-1);
-    assert(nHeightFirst >= 0);
-    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
+    const CBlockIndex* pindexFirst = pindexLast;
+    for (int i = 0; pindexFirst && i < blockstogoback; i++)
+        pindexFirst = pindexFirst->pprev;
     assert(pindexFirst);
 
-    return CalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
+    // Limit adjustment step
+    int64_t nActualTimespan = pindexLast->GetBlockTime() - pindexFirst->GetBlockTime();
+
+    // thanks to RealSolid & WDC for this code
+    if (fNewDifficultyProtocol && !Params().GetConsensus().fPowAllowMinDifficultyBlocks) {
+        if (nActualTimespan < (retargetTimespan - (retargetTimespan / 4)))
+            nActualTimespan = (retargetTimespan - (retargetTimespan / 4));
+        if (nActualTimespan > (retargetTimespan + (retargetTimespan / 2)))
+            nActualTimespan = (retargetTimespan + (retargetTimespan / 2));
+    } else {
+        if (nActualTimespan < retargetTimespan / 4)
+            nActualTimespan = retargetTimespan / 4;
+        if (nActualTimespan > retargetTimespan * 4)
+            nActualTimespan = retargetTimespan * 4;
+    }
+
+    arith_uint256 bnNew;
+    arith_uint256 bnBefore;
+    bnNew.SetCompact(pindexLast->nBits);
+    bnBefore = bnNew;
+    bnNew *= nActualTimespan;
+    bnNew /= retargetTimespan;
+
+    if (bnNew > UintToArith256(Params().GetConsensus().powLimit))
+        bnNew = UintToArith256(Params().GetConsensus().powLimit);
+
+    // debug print
+    LogPrintf("nTargetTimespan = %d    nActualTimespan = %d\n", retargetTimespan, nActualTimespan);
+    LogPrintf("Before: %08x  %s\n", pindexLast->nBits, ArithToUint256(bnBefore).ToString());
+    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), ArithToUint256(bnNew).ToString());
+
+    return bnNew.GetCompact();
+}
+
+unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const DGBConsensus::Params& params, int algo)
+{
+    // find previous block with same algo
+    const CBlockIndex* pindexPrev = GetLastBlockIndexForAlgo(pindexLast, Params().GetConsensus(), algo);
+
+    // find first block in averaging interval
+    // Go back by what we want to be nAveragingInterval blocks
+    const CBlockIndex* pindexFirst = pindexPrev;
+    for (int i = 0; pindexFirst && i < params.nAveragingInterval - 1; i++) {
+        pindexFirst = pindexFirst->pprev;
+        pindexFirst = GetLastBlockIndexForAlgo(pindexFirst, Params().GetConsensus(), algo);
+    }
+
+    if (pindexFirst == nullptr) {
+        return InitialDifficulty(params, algo);
+    }
+
+    // Limit adjustment step
+    int64_t nActualTimespan = pindexPrev->GetBlockTime() - pindexFirst->GetBlockTime();
+    if (nActualTimespan < params.nMinActualTimespan)
+        nActualTimespan = params.nMinActualTimespan;
+    if (nActualTimespan > params.nMaxActualTimespan)
+        nActualTimespan = params.nMaxActualTimespan;
+
+    // Retarget
+
+    arith_uint256 bnNew;
+    bnNew.SetCompact(pindexPrev->nBits);
+    bnNew *= nActualTimespan;
+    bnNew /= params.nAveragingTargetTimespan;
+
+    if (bnNew > UintToArith256(Params().GetConsensus().powLimit)) {
+        bnNew = UintToArith256(Params().GetConsensus().powLimit);
+    }
+
+    return bnNew.GetCompact();
+}
+
+unsigned int GetNextWorkRequiredV3(const CBlockIndex* pindexLast, const DGBConsensus::Params& params, int algo)
+{
+    // find first block in averaging interval
+    // Go back by what we want to be nAveragingInterval blocks per algo
+    const CBlockIndex* pindexFirst = pindexLast;
+    for (int i = 0; pindexFirst && i < NUM_ALGOS * params.nAveragingInterval; i++) {
+        pindexFirst = pindexFirst->pprev;
+    }
+    const CBlockIndex* pindexPrevAlgo = GetLastBlockIndexForAlgo(pindexLast, Params().GetConsensus(), algo);
+    if (pindexPrevAlgo == nullptr || pindexFirst == nullptr)
+        return InitialDifficulty(params, algo); // not enough blocks available
+
+    // Limit adjustment step
+    // Use medians to prevent time-warp attacks
+    int64_t nActualTimespan = pindexLast->GetMedianTimePast() - pindexFirst->GetMedianTimePast();
+    nActualTimespan = params.nAveragingTargetTimespan + (nActualTimespan - params.nAveragingTargetTimespan) / 6;
+    if (nActualTimespan < params.nMinActualTimespanV3)
+        nActualTimespan = params.nMinActualTimespanV3;
+    if (nActualTimespan > params.nMaxActualTimespanV3)
+        nActualTimespan = params.nMaxActualTimespanV3;
+
+    // Global retarget
+    arith_uint256 bnNew;
+    bnNew.SetCompact(pindexPrevAlgo->nBits);
+    bnNew *= nActualTimespan;
+    bnNew /= params.nAveragingTargetTimespan;
+
+    // Per-algo retarget
+    int nAdjustments = pindexPrevAlgo->nHeight - pindexLast->nHeight + NUM_ALGOS - 1;
+    if (nAdjustments > 0) {
+        for (int i = 0; i < nAdjustments; i++) {
+            bnNew *= 100;
+            bnNew /= 100 + params.nLocalDifficultyAdjustment;
+        }
+    }
+    if (nAdjustments < 0) {
+        for (int i = 0; i < -nAdjustments; i++) {
+            bnNew *= 100 + params.nLocalDifficultyAdjustment;
+            bnNew /= 100;
+        }
+    }
+
+    if (bnNew > UintToArith256(Params().GetConsensus().powLimit))
+        bnNew = UintToArith256(Params().GetConsensus().powLimit);
+
+    return bnNew.GetCompact();
+}
+
+unsigned int GetNextWorkRequiredV4(const CBlockIndex* pindexLast, const DGBConsensus::Params& params, int algo)
+{
+    // find first block in averaging interval
+    // Go back by what we want to be nAveragingInterval blocks per algo
+    const CBlockIndex* pindexFirst = pindexLast;
+    for (int i = 0; pindexFirst && i < NUM_ALGOS * params.nAveragingInterval; i++) {
+        pindexFirst = pindexFirst->pprev;
+    }
+
+    const CBlockIndex* pindexPrevAlgo = GetLastBlockIndexForAlgo(pindexLast, Params().GetConsensus(), algo);
+    if (pindexPrevAlgo == nullptr || pindexFirst == nullptr) {
+        return InitialDifficulty(params, algo);
+    }
+
+    // Limit adjustment step
+    // Use medians to prevent time-warp attacks
+    int64_t nActualTimespan = pindexLast->GetMedianTimePast() - pindexFirst->GetMedianTimePast();
+    nActualTimespan = params.nAveragingTargetTimespanV4 + (nActualTimespan - params.nAveragingTargetTimespanV4) / 4;
+
+    if (nActualTimespan < params.nMinActualTimespanV4)
+        nActualTimespan = params.nMinActualTimespanV4;
+    if (nActualTimespan > params.nMaxActualTimespanV4)
+        nActualTimespan = params.nMaxActualTimespanV4;
+
+    //Global retarget
+    arith_uint256 bnNew;
+    bnNew.SetCompact(pindexPrevAlgo->nBits);
+
+    bnNew *= nActualTimespan;
+    bnNew /= params.nAveragingTargetTimespanV4;
+
+    //Per-algo retarget
+    int nAdjustments = pindexPrevAlgo->nHeight + NUM_ALGOS - 1 - pindexLast->nHeight;
+    if (nAdjustments > 0) {
+        for (int i = 0; i < nAdjustments; i++) {
+            bnNew *= 100;
+            bnNew /= (100 + params.nLocalTargetAdjustment);
+        }
+    } else if (nAdjustments < 0) //make it easier
+    {
+        for (int i = 0; i < -nAdjustments; i++) {
+            bnNew *= (100 + params.nLocalTargetAdjustment);
+            bnNew /= 100;
+        }
+    }
+
+    if (bnNew > UintToArith256(Params().GetConsensus().powLimit)) {
+        bnNew = UintToArith256(Params().GetConsensus().powLimit);
+    }
+
+    return bnNew.GetCompact();
+}
+
+unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pblock, const DGBConsensus::Params& params, int algo)
+{
+    // Genesis block
+    if (pindexLast == nullptr)
+        return InitialDifficulty(params, algo);
+
+    if (Params().GetConsensus().fPowAllowMinDifficultyBlocks) {
+        // Special difficulty rule for testnet:
+        // If the new block's timestamp is more than 2 minutes
+        // then allow mining of a min-difficulty block.
+        if (pblock->nTime > pindexLast->nTime + params.nTargetSpacing * 2)
+            return PowLimit();
+    }
+
+    if (pindexLast->nHeight < params.multiAlgoDiffChangeTarget)
+        return GetNextWorkRequiredV1(pindexLast, params, algo);
+    else if (pindexLast->nHeight < params.alwaysUpdateDiffChangeTarget) {
+        return GetNextWorkRequiredV2(pindexLast, params, algo);
+    } else if (pindexLast->nHeight < params.workComputationChangeTarget)
+        return GetNextWorkRequiredV3(pindexLast, params, algo);
+    else
+        return GetNextWorkRequiredV4(pindexLast, params, algo);
 }
 
 unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)
@@ -53,10 +264,10 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
 
     // Limit adjustment step
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
-    if (nActualTimespan < params.nPowTargetTimespan/4)
-        nActualTimespan = params.nPowTargetTimespan/4;
-    if (nActualTimespan > params.nPowTargetTimespan*4)
-        nActualTimespan = params.nPowTargetTimespan*4;
+    if (nActualTimespan < params.nPowTargetTimespan / 4)
+        nActualTimespan = params.nPowTargetTimespan / 4;
+    if (nActualTimespan > params.nPowTargetTimespan * 4)
+        nActualTimespan = params.nPowTargetTimespan * 4;
 
     // Retarget
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
@@ -71,7 +282,7 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
     return bnNew.GetCompact();
 }
 
-bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, uint256& bestHash, const Consensus::Params& params)
 {
     bool fNegative;
     bool fOverflow;
@@ -83,9 +294,32 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&
     if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit))
         return false;
 
+    // Keep record of best hash seen
+    if (UintToArith256(hash) < UintToArith256(bestHash))
+        bestHash = hash;
+
     // Check proof of work matches claimed amount
     if (UintToArith256(hash) > bnTarget)
         return false;
 
     return true;
+}
+
+const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, const Consensus::Params& params, int algo)
+{
+    for (; pindex; pindex = pindex->pprev) {
+        if (GetAlgoByIndex(pindex) != algo)
+            continue;
+        // ignore special min-difficulty testnet blocks
+        if (params.fPowAllowMinDifficultyBlocks && pindex->pprev && pindex->nTime > pindex->pprev->nTime + params.nPowTargetSpacing * 2) {
+            continue;
+        }
+        return pindex;
+    }
+    return nullptr;
+}
+
+uint256 GetPoWHash(const CBlockHeader& block)
+{
+    return block.GetPoWHash();
 }

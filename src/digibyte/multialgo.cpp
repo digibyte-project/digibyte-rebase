@@ -5,7 +5,6 @@
 #include <digibyte/multialgo.h>
 
 #include <chain.h>
-#include <chainparams.h>
 #include <util/system.h>
 
 int GetAlgoWorkFactor(int nHeight, int algo)

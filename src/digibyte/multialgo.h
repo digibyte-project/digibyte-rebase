@@ -11,6 +11,8 @@
 
 class CBlockIndex;
 
+const int NUM_ALGOS = 5;
+
 enum {
     ALGO_UNKNOWN = -1,
     ALGO_SHA256D = 0,
