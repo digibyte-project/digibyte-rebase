@@ -28,6 +28,9 @@ public:
     uint32_t nBits;
     uint32_t nNonce;
 
+    // memory only
+    uint256 powHash;
+
     CBlockHeader()
     {
         SetNull();
@@ -43,6 +46,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        powHash.SetNull();
     }
 
     bool IsNull() const
@@ -51,6 +55,11 @@ public:
     }
 
     inline void SetAlgo(int algo);
+
+    void SetCache(const uint256& cache) const
+    {
+        memcpy((void*)&powHash, (const void*)&cache, 32);
+    }
 
     uint256 GetHash() const;
 

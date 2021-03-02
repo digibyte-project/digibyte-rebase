@@ -91,7 +91,7 @@ static constexpr std::chrono::microseconds GETDATA_TX_INTERVAL{std::chrono::seco
 /** Limit to avoid sending big packets. Not used in processing incoming GETDATA for compatibility */
 static const unsigned int MAX_GETDATA_SZ = 1000;
 /** Number of blocks that can be requested at any given time from a single peer. */
-static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16;
+static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 512;
 /** Timeout in seconds during which a peer must stall block download progress before being disconnected. */
 static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
@@ -163,6 +163,10 @@ std::map<uint256, COrphanTx> mapOrphanTransactions GUARDED_BY(g_cs_orphans);
 /** Index from wtxid into the mapOrphanTransactions to lookup orphan
  *  transactions using their witness ids. */
 std::map<uint256, std::map<uint256, COrphanTx>::iterator> g_orphans_by_wtxid GUARDED_BY(g_cs_orphans);
+/** Indicates that we are now accepting full blocks, rather than just headers */
+bool g_enough_headers{false};
+/** Highest blockcount that we've seen; a trigger for the bool above */
+int g_highest_blockcount{0};
 
 void EraseOrphansFor(NodeId peer);
 
@@ -2365,7 +2369,7 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
         }
 
         // Signal ADDRv2 support (BIP155).
-        if (greatest_common_version >= 70016) {
+        if (greatest_common_version >= WTXID_RELAY_VERSION) {
             // BIP155 defines addrv2 and sendaddrv2 for all protocol versions, but some
             // implementations reject messages they don't know. As a courtesy, don't send
             // it to nodes with a version before 70016, as no software is known to support
@@ -2382,6 +2386,18 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
             pfrom.cleanSubVer = cleanSubVer;
         }
         pfrom.nStartingHeight = nStartingHeight;
+
+        //! use this as a trigger for headers
+        if (pfrom.nStartingHeight > g_highest_blockcount) {
+            g_highest_blockcount = pfrom.nStartingHeight;
+            LogPrintf("g_highest_blockcount set to %d\n", g_highest_blockcount);
+        }
+
+        //! the trigger
+        if (pindexBestHeader->nHeight > g_highest_blockcount * 0.95) {
+            g_enough_headers = true;
+            LogPrintf("g_enough_headers set to true\n");
+        }
 
         // set nodes not relaying blocks and tx and not serving (parts) of the historical blockchain as "clients"
         pfrom.fClient = (!(nServices & NODE_NETWORK) && !(nServices & NODE_NETWORK_LIMITED));
@@ -4160,6 +4176,8 @@ bool PeerManager::SendMessages(CNode* pto)
                 m_connman.PushMessage(pto, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexStart), uint256()));
             }
         }
+
+        if (!g_enough_headers) return true;
 
         //
         // Try sending block announcements via headers
