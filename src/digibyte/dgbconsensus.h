@@ -58,6 +58,8 @@ struct Params {
 
     int nEpochLength;
     uint32_t nOdoShapechangeInterval;
+
+    int maxCacheHeight;
 };
 
 } // namespace DGBConsensus

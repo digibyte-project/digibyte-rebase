@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chain.h>
+#include <digibyte/chaincache.h>
 #include <digibyte/dgbchainparams.h>
 #include <digibyte/multialgo.h>
 #include <pow.h>
@@ -146,6 +147,15 @@ arith_uint256 GetBlockProof(const CBlockIndex& block)
     int nHeight = block.nHeight;
     const DGBConsensus::Params& params = DGBParams().GetConsensus();
 
+    if (!cacheComplete)
+        cacheComplete = init_cachefile(params);
+
+    if (nHeight < maxCacheHeight) {
+        arith_uint256 *cacheWork = returnChainWork(nHeight);
+        if (*cacheWork > 0)
+            return *cacheWork;
+    }
+
     if (nHeight < params.workComputationChangeTarget)
     {
         arith_uint256 bnBlockWork = GetBlockProofBase(block);
@@ -177,6 +187,8 @@ arith_uint256 GetBlockProof(const CBlockIndex& block)
         arith_uint256 bnRes = (~bnAvgTarget / (bnAvgTarget + 1)) + 1;
         // Scale to roughly match the old work calculation
         bnRes <<= 7;
+
+        writeAtHeight(nHeight, bnRes);
 
         return bnRes;
     }
