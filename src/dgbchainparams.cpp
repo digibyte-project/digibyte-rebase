@@ -5,6 +5,7 @@
 #include <digibyte/dgbchainparams.h>
 
 #include <chainparams.h>
+#include <digibyte/multialgo.h>
 #include <tinyformat.h>
 #include <util/system.h>
 #include <util/strencodings.h>
@@ -20,6 +21,7 @@
 class CMainParams : public DGBChainParams {
 public:
     CMainParams() {
+        consensus.initialTarget[ALGO_ODO] = uint256S("0000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nDiffChangeTarget = 67200;
         consensus.patchBlockRewardDuration = 10080;
         consensus.patchBlockRewardDuration2 = 80160;
@@ -30,8 +32,8 @@ public:
         consensus.nInterval = consensus.nTargetTimespan / consensus.nTargetSpacing;
         consensus.nIntervalRe = consensus.nTargetTimespanRe / consensus.nTargetSpacingRe;
         consensus.nAveragingInterval = 10;
-        consensus.multiAlgoTargetSpacing = 30 * 5;
-        consensus.multiAlgoTargetSpacingV4 = 15 * 5;
+        consensus.multiAlgoTargetSpacing = 30 * NUM_ALGOS;
+        consensus.multiAlgoTargetSpacingV4 = 15 * NUM_ALGOS;
         consensus.nAveragingTargetTimespan = consensus.nAveragingInterval * consensus.multiAlgoTargetSpacing;
         consensus.nAveragingTargetTimespanV4 = consensus.nAveragingInterval * consensus.multiAlgoTargetSpacingV4;
         consensus.nMaxAdjustDown = 40;

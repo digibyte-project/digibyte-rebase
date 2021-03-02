@@ -4,6 +4,7 @@
 
 #include <chain.h>
 #include <chainparams.h>
+#include <digibyte/dgbchainparams.h>
 #include <pow.h>
 #include <test/util/setup_common.h>
 
@@ -20,7 +21,7 @@ BOOST_AUTO_TEST_CASE(get_next_work)
     pindexLast.nHeight = 32255;
     pindexLast.nTime = 1262152739;  // Block #32255
     pindexLast.nBits = 0x1d00ffff;
-    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, chainParams->GetConsensus()), 0x1d00d86aU);
+    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, DGBParams().GetConsensus()), 0x1d00d86aU);
 }
 
 /* Test the constraint on the upper bound for next work */
@@ -32,7 +33,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_pow_limit)
     pindexLast.nHeight = 2015;
     pindexLast.nTime = 1233061996;  // Block #2015
     pindexLast.nBits = 0x1d00ffff;
-    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, chainParams->GetConsensus()), 0x1d00ffffU);
+    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, DGBParams().GetConsensus()), 0x1d00ffffU);
 }
 
 /* Test the constraint on the lower bound for actual time taken */
@@ -44,7 +45,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_lower_limit_actual)
     pindexLast.nHeight = 68543;
     pindexLast.nTime = 1279297671;  // Block #68543
     pindexLast.nBits = 0x1c05a3f4;
-    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, chainParams->GetConsensus()), 0x1c0168fdU);
+    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, DGBParams().GetConsensus()), 0x1c0168fdU);
 }
 
 /* Test the constraint on the upper bound for actual time taken */
@@ -56,7 +57,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_upper_limit_actual)
     pindexLast.nHeight = 46367;
     pindexLast.nTime = 1269211443;  // Block #46367
     pindexLast.nBits = 0x1c387f6f;
-    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, chainParams->GetConsensus()), 0x1d00e1fdU);
+    BOOST_CHECK_EQUAL(CalculateNextWorkRequired(&pindexLast, nLastRetargetTime, DGBParams().GetConsensus()), 0x1d00e1fdU);
 }
 
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_negative_target)
@@ -66,7 +67,8 @@ BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_negative_target)
     unsigned int nBits;
     nBits = UintToArith256(consensus.powLimit).GetCompact(true);
     hash.SetHex("0x1");
-    BOOST_CHECK(!CheckProofOfWork(hash, nBits, consensus));
+    uint256 dummyHash;
+    BOOST_CHECK(!CheckProofOfWork(hash, nBits, dummyHash, consensus));
 }
 
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_overflow_target)
@@ -75,7 +77,8 @@ BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_overflow_target)
     uint256 hash;
     unsigned int nBits = ~0x00800000;
     hash.SetHex("0x1");
-    BOOST_CHECK(!CheckProofOfWork(hash, nBits, consensus));
+    uint256 dummyHash;
+    BOOST_CHECK(!CheckProofOfWork(hash, nBits, dummyHash, consensus));
 }
 
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_too_easy_target)
@@ -87,7 +90,8 @@ BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_too_easy_target)
     nBits_arith *= 2;
     nBits = nBits_arith.GetCompact();
     hash.SetHex("0x1");
-    BOOST_CHECK(!CheckProofOfWork(hash, nBits, consensus));
+    uint256 dummyHash;
+    BOOST_CHECK(!CheckProofOfWork(hash, nBits, dummyHash, consensus));
 }
 
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_biger_hash_than_target)
@@ -99,7 +103,8 @@ BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_biger_hash_than_target)
     nBits = hash_arith.GetCompact();
     hash_arith *= 2; // hash > nBits
     hash = ArithToUint256(hash_arith);
-    BOOST_CHECK(!CheckProofOfWork(hash, nBits, consensus));
+    uint256 dummyHash;
+    BOOST_CHECK(!CheckProofOfWork(hash, nBits, dummyHash, consensus));
 }
 
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_zero_target)
@@ -110,7 +115,8 @@ BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_zero_target)
     arith_uint256 hash_arith{0};
     nBits = hash_arith.GetCompact();
     hash = ArithToUint256(hash_arith);
-    BOOST_CHECK(!CheckProofOfWork(hash, nBits, consensus));
+    uint256 dummyHash;
+    BOOST_CHECK(!CheckProofOfWork(hash, nBits, dummyHash, consensus));
 }
 
 BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
@@ -120,7 +126,7 @@ BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
     for (int i = 0; i < 10000; i++) {
         blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
         blocks[i].nHeight = i;
-        blocks[i].nTime = 1269211443 + i * chainParams->GetConsensus().nPowTargetSpacing;
+        blocks[i].nTime = 1269211443 + i * Params().GetConsensus().nPowTargetSpacing;
         blocks[i].nBits = 0x207fffff; /* target 0x7fffff000... */
         blocks[i].nChainWork = i ? blocks[i - 1].nChainWork + GetBlockProof(blocks[i - 1]) : arith_uint256(0);
     }
@@ -130,7 +136,7 @@ BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
         CBlockIndex *p2 = &blocks[InsecureRandRange(10000)];
         CBlockIndex *p3 = &blocks[InsecureRandRange(10000)];
 
-        int64_t tdiff = GetBlockProofEquivalentTime(*p1, *p2, *p3, chainParams->GetConsensus());
+        int64_t tdiff = GetBlockProofEquivalentTime(*p1, *p2, *p3, Params().GetConsensus());
         BOOST_CHECK_EQUAL(tdiff, p1->GetBlockTime() - p2->GetBlockTime());
     }
 }
@@ -138,10 +144,10 @@ BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
 void sanity_check_chainparams(const ArgsManager& args, std::string chainName)
 {
     const auto chainParams = CreateChainParams(args, chainName);
-    const auto consensus = chainParams->GetConsensus();
+    const auto consensus = DGBParams().GetConsensus();
 
     // hash genesis is correct
-    BOOST_CHECK_EQUAL(consensus.hashGenesisBlock, chainParams->GenesisBlock().GetHash());
+    BOOST_CHECK_EQUAL(consensus.hashGenesisBlock, Params().GenesisBlock().GetHash());
 
     // target timespan is an even multiple of spacing
     BOOST_CHECK_EQUAL(consensus.nPowTargetTimespan % consensus.nPowTargetSpacing, 0);

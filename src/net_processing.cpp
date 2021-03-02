@@ -96,7 +96,7 @@ static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16;
 static const unsigned int BLOCK_STALLING_TIMEOUT = 2;
 /** Number of headers sent in one getheaders result. We rely on the assumption that if a peer sends
  *  less than this number, we reached its tip. Changing this value is a protocol upgrade. */
-static const unsigned int MAX_HEADERS_RESULTS = 2000;
+static const unsigned int MAX_HEADERS_RESULTS = 10000;
 /** Maximum depth of blocks we're willing to serve as compact blocks to peers
  *  when requested. For older blocks, a regular BLOCK response will be sent. */
 static const int MAX_CMPCTBLOCK_DEPTH = 5;
@@ -1344,7 +1344,7 @@ void PeerManager::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockInde
         // Relay inventory, but don't relay old inventory during initial block download.
         m_connman.ForEachNode([nNewHeight, &vHashes](CNode* pnode) {
             LOCK(pnode->cs_inventory);
-            if (nNewHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : 0)) {
+            if (nNewHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - MAX_HEADERS_RESULTS : 0)) {
                 for (const uint256& hash : reverse_iterate(vHashes)) {
                     pnode->vBlockHashesToAnnounce.push_back(hash);
                 }
