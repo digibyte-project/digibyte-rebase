@@ -69,8 +69,8 @@ public:
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.BIP16Exception = uint256S("0x00000000000002dc756eebf4f49723ed8d30cc28a5f108eb94b1ba88ac4f9c22");
-        consensus.BIP34Height = 4350000; // 993bca4358ce47816aa81eac81c3d24d52eef8e3c4a175ca8a191d7d14902fd7
-        consensus.BIP34Hash = uint256S("0x993bca4358ce47816aa81eac81c3d24d52eef8e3c4a175ca8a191d7d14902fd7");
+        consensus.BIP34Height = 4394880; // 0xadd8ca420f557f62377ec2be6e6f47b96cf2e68160d58aeb7b73433de834cca0
+        consensus.BIP34Hash = uint256S("0xadd8ca420f557f62377ec2be6e6f47b96cf2e68160d58aeb7b73433de834cca0");
         consensus.BIP65Height = consensus.BIP34Height; // the following dont need to be spot-on; they just need to preceed the event
         consensus.BIP66Height = consensus.BIP34Height;
         consensus.CSVHeight = consensus.BIP34Height;

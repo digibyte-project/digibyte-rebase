@@ -87,9 +87,9 @@ unsigned int GetNextWorkRequiredV1(const CBlockIndex* pindexLast, const DGBConse
         bnNew = UintToArith256(Params().GetConsensus().powLimit);
 
     // debug print
-    LogPrintf("nTargetTimespan = %d    nActualTimespan = %d\n", retargetTimespan, nActualTimespan);
-    LogPrintf("Before: %08x  %s\n", pindexLast->nBits, ArithToUint256(bnBefore).ToString());
-    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), ArithToUint256(bnNew).ToString());
+    // LogPrintf("nTargetTimespan = %d    nActualTimespan = %d\n", retargetTimespan, nActualTimespan);
+    // LogPrintf("Before: %08x  %s\n", pindexLast->nBits, ArithToUint256(bnBefore).ToString());
+    // LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), ArithToUint256(bnNew).ToString());
 
     return bnNew.GetCompact();
 }
