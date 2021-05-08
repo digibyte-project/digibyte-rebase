@@ -110,6 +110,7 @@ enum class SynchronizationState {
     POST_INIT
 };
 
+extern bool fInIbdCache;
 extern RecursiveMutex cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;

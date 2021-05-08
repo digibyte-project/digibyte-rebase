@@ -136,6 +136,7 @@ uint256 g_best_block;
 bool g_parallel_script_checks{false};
 std::atomic_bool fImporting(false);
 std::atomic_bool fReindex(false);
+bool fInIbdCache = true;
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fRequireStandard = true;
@@ -1162,7 +1163,7 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
 
     // Check the header
     uint256 dummyHash;
-    if (!CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
+    if (!fInIbdCache && !CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     // Signet only: check block solution
