@@ -2512,6 +2512,21 @@ static void AppendWarning(bilingual_str& res, const bilingual_str& warn)
     res += warn;
 }
 
+/** Timing functions for block synchronization. */
+int blockAdvance(bool reset = false) {
+    static int blockTimer;
+    if (reset)
+        blockTimer = 0;
+    return ++blockTimer;
+}
+
+void blockInterval() {
+    int b = blockAdvance(false);
+    blockAdvance(true);
+    if (b)
+        LogPrintf("%.2f blks/sec\n", (double) b / 3);
+}
+
 /** Check warning conditions and do some notifications on new chain tip set. */
 static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const CChainParams& chainParams)
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
@@ -2523,6 +2538,8 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
         LOCK(g_best_block_mutex);
         g_best_block = pindexNew->GetBlockHash();
         g_best_block_cv.notify_all();
+
+        blockAdvance();
     }
 
     bool fAllAsicBoost = true;

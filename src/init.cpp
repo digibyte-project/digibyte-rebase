@@ -2012,6 +2012,8 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
         return false;
     }
 
+    node.scheduler->scheduleEvery(std::bind(&blockInterval), std::chrono::milliseconds{3000});
+
     // ********************************************************* Step 13: finished
 
     SetRPCWarmupFinished();
