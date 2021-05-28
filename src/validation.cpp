@@ -3422,7 +3422,7 @@ static bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos
     return true;
 }
 
-static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
+static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = !fInIbdCache)
 {
     // Check proof of work matches claimed amount
     uint256 dummyHash;
