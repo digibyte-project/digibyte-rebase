@@ -110,6 +110,7 @@ enum class SynchronizationState {
     POST_INIT
 };
 
+extern bool fInIbdCache;
 extern RecursiveMutex cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
@@ -984,5 +985,7 @@ inline bool IsBlockPruned(const CBlockIndex* pblockindex)
 {
     return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
 }
+
+void blockInterval();
 
 #endif // BITCOIN_VALIDATION_H

@@ -136,6 +136,7 @@ uint256 g_best_block;
 bool g_parallel_script_checks{false};
 std::atomic_bool fImporting(false);
 std::atomic_bool fReindex(false);
+bool fInIbdCache = true;
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fRequireStandard = true;
@@ -1162,7 +1163,7 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
 
     // Check the header
     uint256 dummyHash;
-    if (!CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
+    if (!fInIbdCache && !CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     // Signet only: check block solution
@@ -2511,6 +2512,21 @@ static void AppendWarning(bilingual_str& res, const bilingual_str& warn)
     res += warn;
 }
 
+/** Timing functions for block synchronization. */
+int blockAdvance(bool reset = false) {
+    static int blockTimer;
+    if (reset)
+        blockTimer = 0;
+    return ++blockTimer;
+}
+
+void blockInterval() {
+    int b = blockAdvance(false);
+    blockAdvance(true);
+    if (fInIbdCache || b > 5)
+        LogPrintf("%.2f blks/sec\n", (double) b / 3);
+}
+
 /** Check warning conditions and do some notifications on new chain tip set. */
 static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const CChainParams& chainParams)
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
@@ -2522,6 +2538,8 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
         LOCK(g_best_block_mutex);
         g_best_block = pindexNew->GetBlockHash();
         g_best_block_cv.notify_all();
+
+        blockAdvance();
     }
 
     bool fAllAsicBoost = true;
@@ -3404,7 +3422,7 @@ static bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos
     return true;
 }
 
-static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
+static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = !fInIbdCache)
 {
     // Check proof of work matches claimed amount
     uint256 dummyHash;

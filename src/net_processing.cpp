@@ -2689,6 +2689,10 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
 
         LOCK(cs_main);
 
+        // Store state here instead of hitting a lock up to 500 times (!)
+        if (fInIbdCache)
+            fInIbdCache = m_chainman.ActiveChainstate().IsInitialBlockDownload();
+
         const auto current_time = GetTime<std::chrono::microseconds>();
         uint256* best_block{nullptr};
 
@@ -2727,7 +2731,7 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
                     LogPrint(BCLog::NET, "transaction (%s) inv sent in violation of protocol, disconnecting peer=%d\n", inv.hash.ToString(), pfrom.GetId());
                     pfrom.fDisconnect = true;
                     return;
-                } else if (!fAlreadyHave && !m_chainman.ActiveChainstate().IsInitialBlockDownload()) {
+                } else if (!fAlreadyHave && !fInIbdCache) {
                     AddTxAnnouncement(pfrom, gtxid, current_time);
                 }
             } else {
@@ -2963,6 +2967,11 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
             pfrom.fDisconnect = true;
             return;
         }
+
+        // Stop processing the transaction early if we are still in IBD since we don't
+        // have enough information to validate it yet. Sending unsolicited transactions
+        // is not considered a protocol violation, so don't punish the peer.
+        if (fInIbdCache) return;
 
         CTransactionRef ptx;
         vRecv >> ptx;
