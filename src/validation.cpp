@@ -2523,7 +2523,7 @@ int blockAdvance(bool reset = false) {
 void blockInterval() {
     int b = blockAdvance(false);
     blockAdvance(true);
-    if (b)
+    if (fInIbdCache || b > 5)
         LogPrintf("%.2f blks/sec\n", (double) b / 3);
 }
 
