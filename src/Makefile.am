@@ -136,6 +136,7 @@ BITCOIN_CORE_H = \
   digibyte/chaincache.h \
   digibyte/dgbchainparams.h \
   digibyte/dgbconsensus.h \
+  digibyte/digiassets.h \
   digibyte/multialgo.h \
   dbwrapper.h \
   flatfile.h \
@@ -528,6 +529,7 @@ libbitcoin_common_a_SOURCES = \
   chainparams.cpp \
   dgbchainparams.cpp \
   digibyte/chaincache.cpp \
+  digibyte/digiassets.cpp \
   digibyte/multialgo.cpp \
   coins.cpp \
   compressor.cpp \

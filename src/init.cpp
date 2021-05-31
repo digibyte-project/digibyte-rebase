@@ -17,6 +17,7 @@
 #include <chainparams.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
+#include <digibyte/digiassets.h>
 #include <digibyte/multialgo.h>
 #include <fs.h>
 #include <hash.h>
@@ -2022,6 +2023,8 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     for (const auto& client : node.chain_clients) {
         client->start(*node.scheduler);
     }
+
+    digithread(Params().GetConsensus());
 
     BanMan* banman = node.banman.get();
     node.scheduler->scheduleEvery([banman]{
