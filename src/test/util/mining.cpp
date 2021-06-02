@@ -27,7 +27,8 @@ CTxIn MineBlock(const NodeContext& node, const CScript& coinbase_scriptPubKey)
 {
     auto block = PrepareBlock(node, coinbase_scriptPubKey);
 
-    while (!CheckProofOfWork(block->GetHash(), block->nBits, Params().GetConsensus())) {
+    uint256 dummyHash;
+    while (!CheckProofOfWork(block->GetHash(), block->nBits, dummyHash, Params().GetConsensus())) {
         ++block->nNonce;
         assert(block->nNonce);
     }
