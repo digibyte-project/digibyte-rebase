@@ -5,6 +5,7 @@
 #include <blockencodings.h>
 #include <chainparams.h>
 #include <consensus/merkle.h>
+#include <digibyte/multialgo.h>
 #include <pow.h>
 #include <streams.h>
 
@@ -13,6 +14,10 @@
 #include <boost/test/unit_test.hpp>
 
 std::vector<std::pair<uint256, CTransactionRef>> extra_txn;
+
+struct RegtestingSetup : public TestingSetup {
+    RegtestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
+};
 
 BOOST_FIXTURE_TEST_SUITE(blockencodings_tests, RegTestingSetup)
 
@@ -26,9 +31,10 @@ static CBlock BuildBlockTestCase() {
 
     block.vtx.resize(3);
     block.vtx[0] = MakeTransactionRef(tx);
-    block.nVersion = 1;
+    block.nVersion = 0x20000000;
+    block.nVersion |= ALGO_SHA256D;
     block.hashPrevBlock = InsecureRand256();
-    block.nBits = 0x1e0ffff0;
+    block.nBits = 0x207fffff;
 
     tx.vin[0].prevout.hash = InsecureRand256();
     tx.vin[0].prevout.n = 0;
@@ -44,9 +50,8 @@ static CBlock BuildBlockTestCase() {
     bool mutated;
     block.hashMerkleRoot = BlockMerkleRoot(block, &mutated);
     assert(!mutated);
-
     uint256 dummyHash;
-    while (!CheckProofOfWork(block.GetPoWHash(), block.nBits, dummyHash, Params().GetConsensus())) ++block.nNonce;
+    while (!CheckProofOfWork(block.GetHash(), block.nBits, dummyHash, Params().GetConsensus())) ++block.nNonce;
     return block;
 }
 
@@ -104,7 +109,7 @@ BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
 
         CBlock block3;
         BOOST_CHECK(partialBlock.FillBlock(block3, {block.vtx[1]}) == READ_STATUS_OK);
-        BOOST_CHECK_EQUAL(block.GetPoWHash().ToString(), block3.GetPoWHash().ToString());
+        BOOST_CHECK_EQUAL(block.GetHash().ToString(), block3.GetHash().ToString());
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block3, &mutated).ToString());
         BOOST_CHECK(!mutated);
     }
@@ -270,14 +275,13 @@ BOOST_AUTO_TEST_CASE(EmptyBlockRoundTripTest)
     CBlock block;
     block.vtx.resize(1);
     block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-    block.nVersion = 1;
+    block.nVersion = 0x20000000;
     block.hashPrevBlock = InsecureRand256();
-    block.nBits = 0x1e0ffff0;
+    block.nBits = 0x207fffff;
 
     bool mutated;
     block.hashMerkleRoot = BlockMerkleRoot(block, &mutated);
     assert(!mutated);
-
     uint256 dummyHash;
     while (!CheckProofOfWork(block.GetPoWHash(), block.nBits, dummyHash, Params().GetConsensus())) ++block.nNonce;
 

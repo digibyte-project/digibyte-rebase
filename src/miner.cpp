@@ -100,7 +100,7 @@ void BlockAssembler::resetBlock()
 Optional<int64_t> BlockAssembler::m_last_block_num_txs{nullopt};
 Optional<int64_t> BlockAssembler::m_last_block_weight{nullopt};
 
-std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& scriptPubKeyIn, int algo)
+std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& scriptPubKeyIn, int algo, bool testOverride)
 {
     int64_t nTimeStart = GetTimeMicros();
 
@@ -124,7 +124,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus(), algo);
 
-    if (!IsAlgoActive(pindexPrev, DGBParams().GetConsensus(), algo)) {
+    if (!testOverride && !IsAlgoActive(pindexPrev, DGBParams().GetConsensus(), algo)) {
         throw std::runtime_error(strprintf("Algorithm '%s' is not currently active.", GetAlgoName(algo).c_str()));
     }
 

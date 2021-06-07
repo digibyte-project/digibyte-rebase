@@ -5,6 +5,7 @@
 #include <blockfilter.h>
 #include <chainparams.h>
 #include <consensus/validation.h>
+#include <digibyte/multialgo.h>
 #include <index/blockfilterindex.h>
 #include <miner.h>
 #include <pow.h>
@@ -62,7 +63,7 @@ CBlock BuildChainTestingSetup::CreateBlock(const CBlockIndex* prev,
     const CScript& scriptPubKey)
 {
     const CChainParams& chainparams = Params();
-    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(*m_node.mempool, chainparams).CreateNewBlock(scriptPubKey);
+    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(*m_node.mempool, chainparams).CreateNewBlock(scriptPubKey, ALGO_SCRYPT, true);
     CBlock& block = pblocktemplate->block;
     block.hashPrevBlock = prev->GetBlockHash();
     block.nTime = prev->nTime + 1;
