@@ -19,8 +19,10 @@
 #include <protocol.h>
 #include <random.h>
 #include <scheduler.h>
+#include <shutdown.h>
 #include <util/strencodings.h>
 #include <util/translation.h>
+#include <validation.h>
 
 #ifdef WIN32
 #include <string.h>
@@ -1150,6 +1152,14 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
     {
         LOCK(cs_vNodes);
         vNodes.push_back(pnode);
+
+        // Dandelion: new inbound connection
+        vDandelionInbound.push_back(pnode);
+        CNode* pto = SelectFromDandelionDestinations();
+        if (pto) {
+            mDandelionRoutes.insert(std::make_pair(pnode, pto));
+        }
+        LogPrint(BCLog::DANDELION, "Added inbound Dandelion connection:\n%s", GetDandelionRoutingDataDebugString());
     }
 
     // We received a new connection, harvest entropy from the time (and our peer count)
@@ -1207,6 +1217,9 @@ void CConnman::DisconnectNodes()
                     }
                 }
                 if (fDelete) {
+                    // Dandelion: close connection
+                    CloseDandelionConnections(pnode);
+                    LogPrint(BCLog::DANDELION, "Removed Dandelion connection:\n%s", GetDandelionRoutingDataDebugString());
                     vNodesDisconnected.remove(pnode);
                     DeleteNode(pnode);
                 }
@@ -2204,6 +2217,17 @@ void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
     {
         LOCK(cs_vNodes);
         vNodes.push_back(pnode);
+
+        // Dandelion: new outbound connection
+        vDandelionOutbound.push_back(pnode);
+        if (vDandelionDestination.size() < DANDELION_MAX_DESTINATIONS) {
+            vDandelionDestination.push_back(pnode);
+        }
+        LogPrint(BCLog::DANDELION, "Added outbound Dandelion connection:\n%s", GetDandelionRoutingDataDebugString());
+
+        // Dandelion service discovery
+        CInv dummyInv(MSG_DANDELION_TX, uint256::ONE);
+        pnode->PushTxInventory(dummyInv);
     }
 }
 
@@ -2399,7 +2423,6 @@ NodeId CConnman::GetNewNodeId()
     return nLastNodeId.fetch_add(1, std::memory_order_relaxed);
 }
 
-
 bool CConnman::Bind(const CService &addr, unsigned int flags, NetPermissionFlags permissions) {
     if (!(flags & BF_EXPLICIT) && !IsReachable(addr))
         return false;
@@ -2549,6 +2572,12 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
     // Process messages
     threadMessageHandler = std::thread(&TraceThread<std::function<void()> >, "msghand", std::function<void()>(std::bind(&CConnman::ThreadMessageHandler, this)));
 
+    // Dandelion shuffle
+    if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION_PROTOCOL)) {
+        LogPrintf("Dandelion privacy protocol enabled\n");
+        threadDandelionShuffle = std::thread(&TraceThread<std::function<void()> >, "dandelion", std::function<void()>(std::bind(&CConnman::ThreadDandelionShuffle, this)));
+    }
+
     // Dump network addresses
     scheduler.scheduleEvery([this] { DumpAddresses(); }, DUMP_PEERS_INTERVAL);
 
@@ -2606,6 +2635,8 @@ void CConnman::StopThreads()
         threadDNSAddressSeed.join();
     if (threadSocketHandler.joinable())
         threadSocketHandler.join();
+    if (threadDandelionShuffle.joinable())
+        threadDandelionShuffle.join();
 }
 
 void CConnman::StopNodes()

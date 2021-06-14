@@ -54,6 +54,7 @@ struct CUpdatedBlock
     int height;
 };
 
+NodeContext* g_node = nullptr;
 static Mutex cs_blockchange;
 static std::condition_variable cond_blockchange;
 static CUpdatedBlock latestblock GUARDED_BY(cs_blockchange);

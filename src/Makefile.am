@@ -294,6 +294,7 @@ libbitcoin_server_a_SOURCES = \
   blockfilter.cpp \
   chain.cpp \
   consensus/tx_verify.cpp \
+  dandelion.cpp \
   dbwrapper.cpp \
   flatfile.cpp \
   httprpc.cpp \
