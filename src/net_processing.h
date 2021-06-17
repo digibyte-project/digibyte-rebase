@@ -9,7 +9,6 @@
 #include <consensus/params.h>
 #include <net.h>
 #include <sync.h>
-#include <txrequest.h>
 #include <validationinterface.h>
 
 class BlockTransactionsRequest;
@@ -27,6 +26,8 @@ extern RecursiveMutex g_cs_orphans;
 static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 100;
 /** Default number of orphan+recently-replaced txn to keep around for block reconstruction */
 static const unsigned int DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN = 100;
+/** Probability (percentage) that a Dandelion transaction enters fluff phase */
+static const unsigned int DANDELION_FLUFF = 10;
 static const bool DEFAULT_PEERBLOOMFILTERS = false;
 static const bool DEFAULT_PEERBLOCKFILTERS = false;
 /** Threshold for marking a node to be discouraged, e.g. disconnected and added to the discouragement filter. */
@@ -35,7 +36,7 @@ static const int DISCOURAGEMENT_THRESHOLD{100};
 class PeerManager final : public CValidationInterface, public NetEventsInterface {
 public:
     PeerManager(const CChainParams& chainparams, CConnman& connman, BanMan* banman,
-                CScheduler& scheduler, ChainstateManager& chainman, CTxMemPool& pool);
+                CScheduler& scheduler, ChainstateManager& chainman, CTxMemPool& pool, CTxMemPool& s_pool);
 
     /**
      * Overridden from CValidationInterface.
@@ -128,19 +129,13 @@ private:
 
     void SendBlockTransactions(CNode& pfrom, const CBlock& block, const BlockTransactionsRequest& req);
 
-    /** Register with TxRequestTracker that an INV has been received from a
-     *  peer. The announcement parameters are decided in PeerManager and then
-     *  passed to TxRequestTracker. */
-    void AddTxAnnouncement(const CNode& node, const GenTxid& gtxid, std::chrono::microseconds current_time)
-        EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-
     const CChainParams& m_chainparams;
     CConnman& m_connman;
     /** Pointer to this node's banman. May be nullptr - check existence before dereferencing. */
     BanMan* const m_banman;
     ChainstateManager& m_chainman;
     CTxMemPool& m_mempool;
-    TxRequestTracker m_txrequest GUARDED_BY(::cs_main);
+    CTxMemPool& m_stempool;
 
     int64_t m_stale_tip_check_time; //!< Next time to check for stale tip
 };
@@ -156,6 +151,6 @@ struct CNodeStateStats {
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 
 /** Relay transaction to every node */
-void RelayTransaction(const uint256& txid, const uint256& wtxid, const CConnman& connman) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+void RelayTransaction(const uint256&, CConnman& connman);
 
 #endif // BITCOIN_NET_PROCESSING_H

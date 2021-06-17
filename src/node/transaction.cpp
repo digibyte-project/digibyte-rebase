@@ -33,6 +33,8 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
     // and reset after chain clients and RPC sever are stopped. node.connman should never be null here.
     assert(node.connman);
     assert(node.mempool);
+    assert(node.stempool);
+
     std::promise<void> promise;
     uint256 hashTx = tx->GetHash();
     bool callback_set = false;
@@ -50,12 +52,12 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
     }
     if (!node.mempool->exists(hashTx)) {
         // Transaction is not already in the mempool.
-        TxValidationState state;
+        TxValidationState state, dummystate;
         if (max_tx_fee > 0) {
             // First, call ATMP with test_accept and check the fee. If ATMP
             // fails here, return error immediately.
             CAmount fee{0};
-            if (!AcceptToMemoryPool(*node.mempool, state, tx,
+            if (!AcceptToMemoryPool(*node.mempool, *node.stempool, state, tx,
                 nullptr /* plTxnReplaced */, false /* bypass_limits */, /* test_accept */ true, &fee)) {
                 return HandleATMPError(state, err_string);
             } else if (fee > max_tx_fee) {
@@ -63,7 +65,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             }
         }
         // Try to submit the transaction to the mempool.
-        if (!AcceptToMemoryPool(*node.mempool, state, tx,
+        if (!AcceptToMemoryPool(*node.mempool, *node.stempool, state, tx,
                 nullptr /* plTxnReplaced */, false /* bypass_limits */)) {
             return HandleATMPError(state, err_string);
         }
@@ -100,7 +102,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
         node.mempool->AddUnbroadcastTx(hashTx);
 
         LOCK(cs_main);
-        RelayTransaction(hashTx, tx->GetWitnessHash(), *node.connman);
+        RelayTransaction(hashTx, *node.connman);
     }
 
     return TransactionError::OK;

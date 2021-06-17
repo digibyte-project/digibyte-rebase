@@ -190,6 +190,7 @@ void Shutdown(NodeContext& node)
     /// module was initialized.
     util::ThreadRename("shutoff");
     if (node.mempool) node.mempool->AddTransactionsUpdated(1);
+    if (node.stempool) node.stempool->AddTransactionsUpdated(1);
 
     StopHTTPRPC();
     StopREST();
@@ -305,6 +306,7 @@ void Shutdown(NodeContext& node)
     globalVerifyHandle.reset();
     ECC_Stop();
     node.mempool.reset();
+    node.stempool.reset();
     node.chainman = nullptr;
     node.scheduler.reset();
 
@@ -543,6 +545,7 @@ void SetupServerArgs(NodeContext& node)
     argsman.AddArg("-mocktime=<n>", "Replace actual time with " + UNIX_EPOCH_TIME + " (default: 0)", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-maxsigcachesize=<n>", strprintf("Limit sum of signature cache and script execution cache sizes to <n> MiB (default: %u)", DEFAULT_MAX_SIG_CACHE_SIZE), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-maxtipage=<n>", strprintf("Maximum tip age in seconds to consider node in initial block download (default: %u)", DEFAULT_MAX_TIP_AGE), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
+    argsman.AddArg("-dandelion=<n>", strprintf("Enable dandelion support (anonymized transaction relaying) (default: %u)", DEFAULT_DANDELION_PROTOCOL), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-printpriority", strprintf("Log transaction fee per kB when mining blocks (default: %u)", DEFAULT_PRINTPRIORITY), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-printtoconsole", "Send trace/debug info to console (default: 1 when no -daemon. To disable logging to file, set -nodebuglogfile)", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-shrinkdebugfile", "Shrink debug.log file on client startup (default: 1 when no -debug)", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
@@ -1358,6 +1361,7 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     for (const auto& client : node.chain_clients) {
         client->registerRpcs();
     }
+    g_node = &node;
 #if ENABLE_ZMQ
     RegisterZMQRPCCommands(tableRPC);
 #endif
@@ -1395,10 +1399,13 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     // which are all started after this, may use it from the node context.
     assert(!node.mempool);
     node.mempool = MakeUnique<CTxMemPool>(&::feeEstimator);
+    assert(!node.stempool);
+    node.stempool = MakeUnique<CTxMemPool>(&::feeEstimator);
     if (node.mempool) {
         int ratio = std::min<int>(std::max<int>(args.GetArg("-checkmempool", chainparams.DefaultConsistencyChecks() ? 1 : 0), 0), 1000000);
         if (ratio != 0) {
             node.mempool->setSanityCheck(1.0 / ratio);
+            node.stempool->setSanityCheck(1.0 / ratio);
         }
     }
 
@@ -1406,7 +1413,7 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     node.chainman = &g_chainman;
     ChainstateManager& chainman = *Assert(node.chainman);
 
-    node.peerman.reset(new PeerManager(chainparams, *node.connman, node.banman.get(), *node.scheduler, chainman, *node.mempool));
+    node.peerman.reset(new PeerManager(chainparams, *node.connman, node.banman.get(), *node.scheduler, chainman, *node.mempool, *node.stempool));
     RegisterValidationInterface(node.peerman.get());
 
     // sanitize comments per BIP-0014, format user agent and check total size
@@ -1590,7 +1597,7 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
             const int64_t load_block_index_start_time = GetTimeMillis();
             try {
                 LOCK(cs_main);
-                chainman.InitializeChainstate(*Assert(node.mempool));
+                chainman.InitializeChainstate(*Assert(node.mempool), *Assert(node.stempool));
                 chainman.m_total_coinstip_cache = nCoinCacheUsage;
                 chainman.m_total_coinsdb_cache = nCoinDBCache;
 

@@ -74,6 +74,7 @@ static const int DEFAULT_SCRIPTCHECK_THREADS = 0;
 static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
 static const bool DEFAULT_TXINDEX = false;
+static const bool DEFAULT_DANDELION_PROTOCOL = true;
 static const char* const DEFAULT_BLOCKFILTERINDEX = "0";
 /** Default for -persistmempool */
 static const bool DEFAULT_PERSIST_MEMPOOL = true;
@@ -202,9 +203,8 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool
  * @param[out] fee_out optional argument to return tx fee to the caller **/
-bool AcceptToMemoryPool(CTxMemPool& pool, TxValidationState &state, const CTransactionRef &tx,
-                        std::list<CTransactionRef>* plTxnReplaced,
-                        bool bypass_limits, bool test_accept=false, CAmount* fee_out=nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+bool AcceptToMemoryPool(CTxMemPool& pool, CTxMemPool& s_pool, TxValidationState &state, const CTransactionRef &tx,
+                        std::list<CTransactionRef>* plTxnReplaced, bool bypass_limits, bool test_accept=false, CAmount* fee_out=nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 /** Get the BIP9 state for a given deployment at the current tip. */
 ThresholdState VersionBitsTipState(const Consensus::Params& params, Consensus::DeploymentPos pos);
@@ -543,11 +543,14 @@ protected:
     //! mempool that is kept in sync with the chain
     CTxMemPool& m_mempool;
 
+    //! stempool that is kept in sync with the chain
+    CTxMemPool& m_stempool;
+
     //! Manages the UTXO set, which is a reflection of the contents of `m_chain`.
     std::unique_ptr<CoinsViews> m_coins_views;
 
 public:
-    explicit CChainState(CTxMemPool& mempool, BlockManager& blockman, uint256 from_snapshot_blockhash = uint256());
+    explicit CChainState(CTxMemPool& mempool, CTxMemPool& stempool, BlockManager& blockman, uint256 from_snapshot_blockhash = uint256());
 
     /**
      * Initialize the CoinsViews UTXO set database management data structures. The in-memory
@@ -857,7 +860,7 @@ public:
     //                                  constructor
     //! @param[in] snapshot_blockhash   If given, signify that this chainstate
     //!                                 is based on a snapshot.
-    CChainState& InitializeChainstate(CTxMemPool& mempool, const uint256& snapshot_blockhash = uint256())
+    CChainState& InitializeChainstate(CTxMemPool& mempool, CTxMemPool& stempool, const uint256& snapshot_blockhash = uint256())
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     //! Get all chainstates currently being used.
