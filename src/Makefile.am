@@ -485,7 +485,11 @@ crypto_libbitcoin_crypto_base_a_SOURCES += \
   crypto/randomx/vm_compiled.cpp \
   crypto/randomx/vm_compiled_light.cpp \
   crypto/randomx/vm_interpreted.cpp \
-  crypto/randomx/vm_interpreted_light.cpp
+  crypto/randomx/vm_interpreted_light.cpp \
+  crypto/randomx.cpp \
+  crypto/randomx.h \
+  crypto/seedmanager.cpp \
+  crypto/seedmanager.h
 
 if USE_ASM
 crypto_libbitcoin_crypto_base_a_SOURCES += crypto/sha256_sse4.cpp
@@ -526,6 +530,8 @@ libbitcoin_consensus_a_SOURCES = \
   prevector.h \
   primitives/block.cpp \
   primitives/block.h \
+  primitives/moneroheader.cpp \
+  primitives/moneroheader.h \
   primitives/transaction.cpp \
   primitives/transaction.h \
   pubkey.cpp \

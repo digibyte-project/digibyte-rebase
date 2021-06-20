@@ -23,6 +23,8 @@ int GetAlgoWorkFactor(int nHeight, int algo)
         return 4 * 6;
     case ALGO_QUBIT:
         return 128 * 8;
+    case ALGO_RANDOMX:
+        return 1;
     default:
         return 1;
     }
@@ -43,6 +45,8 @@ int GetVersionForAlgo(int algo)
         return BLOCK_VERSION_QUBIT;
     case ALGO_ODO:
         return BLOCK_VERSION_ODO;
+    case ALGO_RANDOMX:
+        return BLOCK_VERSION_RANDOMX;
     default:
         return 0;
     }
@@ -63,6 +67,8 @@ int GetAlgo(int nVersion)
         return ALGO_QUBIT;
     case BLOCK_VERSION_ODO:
         return ALGO_ODO;
+    case BLOCK_VERSION_RANDOMX:
+        return ALGO_RANDOMX;
     }
     return ALGO_UNKNOWN;
 }
@@ -82,6 +88,8 @@ std::string GetAlgoName(int Algo)
         return std::string("qubit");
     case ALGO_ODO:
         return std::string("odo");
+    case ALGO_RANDOMX:
+        return std::string("randomx");
     }
     return std::string("unknown");
 }
@@ -112,6 +120,8 @@ int GetAlgoByName(std::string strAlgo, int fallback)
         return ALGO_QUBIT;
     else if (strAlgo == "odo" || strAlgo == "odosha3")
         return ALGO_ODO;
+    else if (strAlgo == "rxhash" || strAlgo == "randomx")
+        return ALGO_RANDOMX;
     else
         return fallback;
 }

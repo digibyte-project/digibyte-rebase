@@ -237,6 +237,19 @@ bool CheckFinalTx(const CTransaction &tx, int flags)
     return IsFinalTx(tx, nBlockHeight, nBlockTime);
 }
 
+//! Populate the randomx epoch cache
+void init_populaterandomx()
+{
+    CBlockIndex* pindex = ::ChainActive().Tip();
+    const int epochLen = DGBParams().GetConsensus().nEpochLength;
+    while (pindex->nHeight > 0) {
+        if (pindex->nHeight % epochLen == 0)
+            pindex->GetBlockHeader().GetPoWHash(pindex->nHeight);
+        pindex = pindex->pprev;
+    }
+    pindex->GetBlockHeader().GetPoWHash(0);
+}
+
 bool TestLockPointValidity(const LockPoints* lp)
 {
     AssertLockHeld(cs_main);
@@ -1132,6 +1145,15 @@ CTransactionRef GetTransaction(const CBlockIndex* const block_index, const CTxMe
 // CBlock and CBlockIndex
 //
 
+inline int GetHeightByPrevhash(const uint256 prevHash)
+{
+    int height{0};
+    const CBlockIndex* pindexPrev = LookupBlockIndex(prevHash);
+    if (pindexPrev)
+        height = pindexPrev->nHeight+1;
+    return height;
+}
+
 static bool WriteBlockToDisk(const CBlock& block, FlatFilePos& pos, const CMessageHeader::MessageStartChars& messageStart)
 {
     // Open history file to append
@@ -1172,7 +1194,8 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
 
     // Check the header
     uint256 dummyHash;
-    if (!fInIbdCache && !CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
+    int height = GetHeightByPrevhash(block.hashPrevBlock);
+    if (!fInIbdCache && !CheckProofOfWork(block.GetPoWHash(height), block.nBits, dummyHash, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     // Signet only: check block solution
@@ -1901,6 +1924,8 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
 
 bool IsAlgoActive(const CBlockIndex* pindexPrev, const DGBConsensus::Params& consensus, int algo)
 {
+    if (Params().NetworkIDString() == CBaseChainParams::TESTNET)
+        return true;
     if (!pindexPrev)
         return algo == ALGO_SCRYPT;
     const int nHeight = pindexPrev->nHeight;
@@ -3445,7 +3470,8 @@ static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& st
 {
     // Check proof of work matches claimed amount
     uint256 dummyHash;
-    if (fCheckPOW && !CheckProofOfWork(GetPoWHash(block), block.nBits, dummyHash, consensusParams))
+    int height = GetHeightByPrevhash(block.hashPrevBlock);
+    if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(height), block.nBits, dummyHash, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
     return true;

@@ -21,6 +21,7 @@ enum {
     ALGO_SKEIN = 3,
     ALGO_QUBIT = 4,
     ALGO_ODO = 7,
+    ALGO_RANDOMX = 8,
     NUM_ALGOS_IMPL
 };
 
@@ -33,6 +34,7 @@ enum {
     BLOCK_VERSION_SKEIN = (6 << 8),
     BLOCK_VERSION_QUBIT = (8 << 8),
     BLOCK_VERSION_ODO = (14 << 8),
+    BLOCK_VERSION_RANDOMX = (12 << 8),
 };
 
 int GetAlgoWorkFactor(int nHeight, int algo);

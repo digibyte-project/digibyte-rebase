@@ -6,9 +6,17 @@
 #ifndef BITCOIN_PRIMITIVES_BLOCK_H
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
+#include <crypto/randomx.h>
+#include <crypto/randomx/randomx.h>
+#include <consensus/consensus.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
 #include <uint256.h>
+#include <util/system.h>
+
+class RandomXHasher;
+
+extern std::map<int, uint256> seedcache;
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -54,16 +62,14 @@ public:
         return (nBits == 0);
     }
 
-    inline void SetAlgo(int algo);
-
     void SetCache(const uint256& cache) const
     {
         memcpy((void*)&powHash, (const void*)&cache, 32);
     }
 
+    void SetAlgo(int algo);
     uint256 GetHash() const;
-
-    uint256 GetPoWHash() const;
+    uint256 GetPoWHash(int height) const;
 
     int64_t GetBlockTime() const
     {

@@ -10,6 +10,8 @@
 #include <consensus/params.h>
 #include <consensus/validation.h>
 #include <core_io.h>
+#include <crypto/randomx.h>
+#include <crypto/seedmanager.h>
 #include <digibyte/multialgo.h>
 #include <key_io.h>
 #include <miner.h>
@@ -121,7 +123,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
     int nHeight = ::ChainActive().Tip()->nHeight;
     uint256 bestHash = uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     int64_t hashStart = GetTimeMillis();
-    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetPoWHash(), block.nBits, bestHash, Params().GetConsensus()) && !ShutdownRequested()) {
+    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetPoWHash(nHeight), block.nBits, bestHash, Params().GetConsensus()) && !ShutdownRequested()) {
         ++block.nNonce;
         --max_tries;
         if (GetTimeMillis() - hashStart > 1000) {
@@ -627,6 +629,12 @@ static RPCHelpMan getblocktemplate()
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
     LOCK(cs_main);
+
+    //! for randomx seed update
+    int height = ::ChainActive().Height();
+    seedmanager.updateHeight(height);
+    int epoch = seedmanager.currentEpoch(height);
+    uint256 seed = seedmanager.getSeedHash(epoch);
 
     std::string strMode = "template";
     UniValue lpval = NullUniValue;

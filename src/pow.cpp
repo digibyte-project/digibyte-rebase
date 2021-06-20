@@ -319,7 +319,3 @@ const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, const Con
     return nullptr;
 }
 
-uint256 GetPoWHash(const CBlockHeader& block)
-{
-    return block.GetPoWHash();
-}

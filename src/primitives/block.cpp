@@ -11,14 +11,17 @@
 #include <crypto/hashodo.h>
 #include <crypto/hashqubit.h>
 #include <crypto/hashskein.h>
+#include <crypto/scrypt.h>
+#include <primitives/moneroheader.h>
 #include <digibyte/multialgo.h>
 #include <hash.h>
 #include <tinyformat.h>
-#include <crypto/scrypt.h>
+
+std::map<int, uint256> seedcache;
 
 void CBlockHeader::SetAlgo(int algo)
 {
-    this->nVersion |= GetVersionForAlgo(algo);
+    nVersion |= GetVersionForAlgo(algo);
 }
 
 uint256 CBlockHeader::GetHash() const
@@ -26,11 +29,18 @@ uint256 CBlockHeader::GetHash() const
     return SerializeHash(*this);
 }
 
-uint256 CBlockHeader::GetPoWHash() const
+uint256 CBlockHeader::GetPoWHash(int height) const
 {
-    if (!powHash.IsNull()) return powHash;
+    if (!powHash.IsNull())
+        return powHash;
+
+    uint256 thash;
     const int hashAlgo = GetAlgo(this->nVersion);
     const DGBConsensus::Params& params = DGBParams().GetConsensus();
+
+    //! maintain seedcache conservatively
+    if (height % params.nEpochLength == 0)
+        seedcache[height] = this->hashMerkleRoot;
 
     switch (hashAlgo) {
         case ALGO_SHA256D: {
@@ -39,31 +49,36 @@ uint256 CBlockHeader::GetPoWHash() const
             return cache;
         }
         case ALGO_SCRYPT: {
-            uint256 thash;
-            scrypt_1024_1_1_256(BEGIN(nVersion), BEGIN(thash));
+            scrypt_1024_1_1_256(((char*)&(nVersion)), ((char*)&(thash)));
             SetCache(thash);
             return thash;
         }
         case ALGO_GROESTL: {
-            const uint256 cache = HashGroestl(BEGIN(nVersion), END(nNonce));
+            const uint256 cache = HashGroestl(((char*)&(nVersion)), ((char*)&((&(nNonce))[1])));
             SetCache(cache);
             return cache;
         }
         case ALGO_SKEIN: {
-            const uint256 cache = HashSkein(BEGIN(nVersion), END(nNonce));
+            const uint256 cache = HashSkein(((char*)&(nVersion)), ((char*)&((&(nNonce))[1])));
             SetCache(cache);
             return cache;
         }
         case ALGO_QUBIT: {
-            const uint256 cache = HashQubit(BEGIN(nVersion), END(nNonce));
+            const uint256 cache = HashQubit(((char*)&(nVersion)), ((char*)&((&(nNonce))[1])));
             SetCache(cache);
             return cache;
         }
         case ALGO_ODO: {
             uint32_t key = OdoKey(params, nTime);
-            const uint256 cache = HashOdo(BEGIN(nVersion), END(nNonce), key);
+            const uint256 cache = HashOdo(((char*)&(nVersion)), ((char*)&((&(nNonce))[1])), key);
             SetCache(cache);
             return cache;
+        }
+        case ALGO_RANDOMX: {
+            seedmanager.updateHeight(height);
+            serialize_monero_hash((const char*)this, ((char*)&(thash)), blk_reader, height);
+            SetCache(thash);
+            return thash;
         }
         case ALGO_UNKNOWN:
             return ArithToUint256(~arith_uint256(0));

@@ -66,7 +66,43 @@ public:
 class CTestNetParams : public DGBChainParams {
 public:
     CTestNetParams(const DGBChainParams& params = CMainParams()) {
-        memcpy(this, &params, sizeof(params));
+        consensus.initialTarget[ALGO_ODO] = uint256S("0000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.initialTarget[ALGO_RANDOMX] = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.nDiffChangeTarget = 0;
+        consensus.patchBlockRewardDuration = 10080;
+        consensus.patchBlockRewardDuration2 = 80160;
+        consensus.nTargetTimespanRe = 1 * 60;
+        consensus.nTargetSpacingRe = 1 * 60;
+        consensus.nTargetTimespan =  0.5 * 60;
+        consensus.nTargetSpacing = 15;
+        consensus.nInterval = consensus.nTargetTimespan / consensus.nTargetSpacing;
+        consensus.nIntervalRe = consensus.nTargetTimespanRe / consensus.nTargetSpacingRe;
+        consensus.nAveragingInterval = 10;
+        consensus.multiAlgoTargetSpacing = 30 * NUM_ALGOS;
+        consensus.multiAlgoTargetSpacingV4 = 15 * NUM_ALGOS;
+        consensus.nAveragingTargetTimespan = consensus.nAveragingInterval * consensus.multiAlgoTargetSpacing;
+        consensus.nAveragingTargetTimespanV4 = consensus.nAveragingInterval * consensus.multiAlgoTargetSpacingV4;
+        consensus.nMaxAdjustDown = 40;
+        consensus.nMaxAdjustUp = 20;
+        consensus.nMaxAdjustDownV3 = 16;
+        consensus.nMaxAdjustUpV3 = 8;
+        consensus.nMaxAdjustDownV4 = 16;
+        consensus.nMaxAdjustUpV4 = 8;
+        consensus.nMinActualTimespan = consensus.nAveragingTargetTimespan * (100 - consensus.nMaxAdjustUp) / 100;
+        consensus.nMaxActualTimespan = consensus.nAveragingTargetTimespan * (100 + consensus.nMaxAdjustDown) / 100;
+        consensus.nMinActualTimespanV3 = consensus.nAveragingTargetTimespan * (100 - consensus.nMaxAdjustUpV3) / 100;
+        consensus.nMaxActualTimespanV3 = consensus.nAveragingTargetTimespan * (100 + consensus.nMaxAdjustDownV3) / 100;
+        consensus.nMinActualTimespanV4 = consensus.nAveragingTargetTimespanV4 * (100 - consensus.nMaxAdjustUpV4) / 100;
+        consensus.nMaxActualTimespanV4 = consensus.nAveragingTargetTimespanV4 * (100 + consensus.nMaxAdjustDownV4) / 100;
+        consensus.nLocalTargetAdjustment = 4;
+        consensus.nLocalDifficultyAdjustment = 4;
+        consensus.multiAlgoDiffChangeTarget = 0;
+        consensus.alwaysUpdateDiffChangeTarget = 0;
+        consensus.workComputationChangeTarget = 0;
+        consensus.algoSwapChangeTarget = 0;
+        consensus.nOdoShapechangeInterval = 10*24*60*60;
+        consensus.nEpochLength = 5;
+        consensus.maxCacheHeight = 0;
     }
 };
 

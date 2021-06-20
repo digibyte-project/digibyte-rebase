@@ -991,4 +991,7 @@ inline bool IsBlockPruned(const CBlockIndex* pblockindex)
 
 void blockInterval();
 
+//! Populate the RandomX epoch cache
+void init_populaterandomx();
+
 #endif // BITCOIN_VALIDATION_H
