@@ -3005,8 +3005,6 @@ bool CChainState::ActivateBestChain(BlockValidationState &state, const CChainPar
         // probably have a DEBUG_LOCKORDER test for this in the future.
         LimitValidationInterfaceQueue();
 
-        const CBlockIndex *pindexFork;
-        bool fInitialDownload;
         {
             LOCK(cs_main);
             CBlockIndex* starting_tip = ::ChainActive().Tip();
@@ -3945,7 +3943,9 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, Block
         return AbortNode(state, std::string("System error: ") + e.what());
     }
 
-    FlushStateToDisk(chainparams, state, FlushStateMode::NONE);
+    if (&::ChainstateActive().CoinsTip() != nullptr) {
+        FlushStateToDisk(chainparams, state, FlushStateMode::NONE);
+    }
 
     CheckBlockIndex(chainparams.GetConsensus());
 
@@ -3982,6 +3982,7 @@ bool ChainstateManager::ProcessNewBlock(const CChainParams& chainparams, const s
     if (!::ChainstateActive().ActivateBestChain(state, chainparams, pblock))
         return error("%s: ActivateBestChain failed (%s)", __func__, state.ToString());
 
+    LogPrintf("%s : ACCEPTED\n", __func__);
     return true;
 }
 
