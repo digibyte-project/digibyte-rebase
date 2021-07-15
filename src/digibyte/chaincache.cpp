@@ -77,7 +77,7 @@ bool init_cachefile(const DGBConsensus::Params& params)
         chainWorkSum += *p;
     }
 
-    cacheComplete = chainWorkSum == UintToArith256(uint256S("00000000000000000000000000000000000000000008fd79379b41b0f3f94100"));
+    cacheComplete = chainWorkSum == UintToArith256(uint256S("0000000000000000000000000000000000000000000b300fe763a06e895cc480"));
 
     LogPrintf("chainwork %s @ height %d (complete %s)\n", chainWorkSum.ToString(), params.maxCacheHeight, cacheComplete ? "Y" : "N");
 

@@ -14,7 +14,7 @@
 
 extern bool cacheComplete;
 
-const int maxCacheHeight = 12500000;
+const int maxCacheHeight = 13250000;
 
 bool init_cachefile(const DGBConsensus::Params& params);
 arith_uint256* returnChainWork(int nHeight);

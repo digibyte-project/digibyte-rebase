@@ -56,7 +56,7 @@ public:
         consensus.algoSwapChangeTarget = 9100000;
         consensus.nOdoShapechangeInterval = 10*24*60*60;
         consensus.nEpochLength = std::numeric_limits<int>::max();
-        consensus.maxCacheHeight = 12500000;
+        consensus.maxCacheHeight = 13250000;
     }
 };
 
